@@ -1,19 +1,18 @@
-
 import React, { useState } from 'react';
 import { 
   format, 
   addMonths, 
-  subMonths, 
-  startOfMonth, 
   endOfMonth, 
-  startOfWeek, 
   endOfWeek, 
   eachDayOfInterval, 
   isSameMonth, 
   isSameDay, 
-  isBefore, 
-  startOfToday 
+  isBefore
 } from 'date-fns';
+import subMonths from 'date-fns/subMonths';
+import startOfMonth from 'date-fns/startOfMonth';
+import startOfWeek from 'date-fns/startOfWeek';
+import startOfToday from 'date-fns/startOfToday';
 import { es } from 'date-fns/locale/es';
 import { ChevronLeftIcon, ChevronRightIcon } from './IconComponents';
 
