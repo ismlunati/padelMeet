@@ -1,0 +1,5 @@
+{
+  "name": "PadelMeet",
+  "description": "A modern and intuitive web application for booking paddle tennis courts, inspired by Playtomic. Users can browse available courts, select time slots, and confirm their reservations seamlessly.",
+  "requestFramePermissions": []
+}
