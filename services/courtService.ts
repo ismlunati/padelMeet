@@ -45,7 +45,7 @@ const parseDates = (data: any): any => {
 
 export const courtService = {
     // --- Auth ---
-    login: async (email: string, password: string): Promise<{ token: string, user: Player }> => {
+    login: async (email: string, password: string): Promise<string> => {
         // Switched to 'application/x-www-form-urlencoded' to match standard FastAPI OAuth2 endpoints,
         // which resolves the 422 Unprocessable Entity error. The endpoint expects form data, not JSON.
         const formData = new URLSearchParams();
@@ -58,8 +58,6 @@ export const courtService = {
             body: formData,
         });
 
-        // We handle the response directly here to normalize the output,
-        // as the backend might return 'access_token' (FastAPI default) or 'token' (spec).
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Login failed. Check credentials.' }));
             throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
@@ -67,15 +65,14 @@ export const courtService = {
 
         const data = await response.json();
         
-        // The spec asked for 'token', but FastAPI's default is 'access_token'. We handle both.
-        const token = data.access_token || data.token;
-        const user = data.user;
+        // FastAPI's default OAuth2 response includes 'access_token'.
+        const token = data.access_token;
 
-        if (!token || !user) {
-            throw new Error('Login response from server was invalid. Missing `token` or `user` field.');
+        if (!token) {
+            throw new Error('Login response from server was successful, but did not contain an access_token.');
         }
 
-        return { token, user: parseDates(user) };
+        return token;
     },
 
     getMe: async (): Promise<Player> => {

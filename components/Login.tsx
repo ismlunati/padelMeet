@@ -18,9 +18,20 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         setError(null);
         setIsLoading(true);
         try {
-            const { user, token } = await courtService.login(email, password);
+            // Step 1: Authenticate and get the token
+            const token = await courtService.login(email, password);
+            
+            // Step 2: Store token so the next request is authenticated
+            localStorage.setItem('authToken', token);
+            
+            // Step 3: Fetch the user data using the new token
+            const user = await courtService.getMe();
+            
+            // Step 4: Finalize the login process in the main App component
             onLoginSuccess(user, token);
         } catch (err) {
+            // If any step fails, clear the token to be safe
+            localStorage.removeItem('authToken');
             setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
         } finally {
             setIsLoading(false);
