@@ -14,8 +14,8 @@ export interface Court {
 export interface Match {
   id: string;
   court: Court;
-  date: Date;
-  time: string;
+  start_time: string; // From backend, e.g., "2025-08-20T18:00:00Z"
+  end_time: string;   // From backend
   players: Player[]; // Confirmed players
   invitedPlayerIds: string[]; // IDs of players who have been invited
   capacity: number;

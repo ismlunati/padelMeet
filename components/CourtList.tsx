@@ -16,10 +16,12 @@ const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ courts, currentUser, 
     const [myInvitations, setMyInvitations] = useState<Match[]>([]);
     const [myConfirmedMatches, setMyConfirmedMatches] = useState<Match[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const fetchDashboardData = useCallback(async () => {
         if (!currentUser?.id) return;
         setIsLoading(true);
+        setError(null);
         try {
             const [invitations, confirmedMatches] = await Promise.all([
                 courtService.fetchMyInvitations(),
@@ -30,7 +32,7 @@ const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ courts, currentUser, 
             setMyConfirmedMatches(confirmedMatches);
         } catch (error) {
             console.error("Failed to fetch player dashboard data:", error);
-            // Optionally, set an error state to show a message to the user
+            setError("No se pudieron cargar tus partidos. Es posible que el servidor tenga un problema. Por favor, contacta al administrador.");
         } finally {
             setIsLoading(false);
         }
@@ -61,35 +63,46 @@ const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ courts, currentUser, 
                     <p className="text-lg text-slate-400 mt-2">Este es tu panel de partidos.</p>
                 </div>
 
-                <div className="mb-12">
-                    <h2 className="text-2xl font-bold text-white mb-4">Mis Invitaciones</h2>
-                    {myInvitations.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {myInvitations.map((match) => (
-                                <InvitationCard key={match.id} match={match} onRespond={handleRespondToInvitation} />
-                            ))}
+                {error && (
+                    <div className="bg-red-900/50 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg text-center mb-10">
+                        <p className="font-bold">Error de Conexión</p>
+                        <p className="text-sm">{error}</p>
+                    </div>
+                )}
+
+                {!error && (
+                    <>
+                        <div className="mb-12">
+                            <h2 className="text-2xl font-bold text-white mb-4">Mis Invitaciones</h2>
+                            {myInvitations.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {myInvitations.map((match) => (
+                                        <InvitationCard key={match.id} match={match} onRespond={handleRespondToInvitation} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 bg-brand-light-dark rounded-lg border border-brand-stroke">
+                                    <p className="text-slate-400">No tienes invitaciones pendientes.</p>
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <div className="text-center py-10 bg-brand-light-dark rounded-lg border border-brand-stroke">
-                            <p className="text-slate-400">No tienes invitaciones pendientes.</p>
+                        
+                        <div>
+                            <h2 className="text-2xl font-bold text-white mb-4">Mis Próximos Partidos</h2>
+                            {myConfirmedMatches.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {myConfirmedMatches.map((match) => (
+                                       <MatchCard key={match.id} match={match} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 bg-brand-light-dark rounded-lg border border-brand-stroke">
+                                    <p className="text-slate-400">Aún no te has apuntado a ningún partido.</p>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
-                
-                <div>
-                    <h2 className="text-2xl font-bold text-white mb-4">Mis Próximos Partidos</h2>
-                    {myConfirmedMatches.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {myConfirmedMatches.map((match) => (
-                               <MatchCard key={match.id} match={match} />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-10 bg-brand-light-dark rounded-lg border border-brand-stroke">
-                            <p className="text-slate-400">Aún no te has apuntado a ningún partido.</p>
-                        </div>
-                    )}
-                </div>
+                    </>
+                )}
             </div>
 
             <div>

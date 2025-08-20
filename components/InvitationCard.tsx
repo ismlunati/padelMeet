@@ -11,15 +11,20 @@ interface InvitationCardProps {
 }
 
 const InvitationCard: React.FC<InvitationCardProps> = ({ match, onRespond }) => {
-  const { id, court, time, players, capacity, date } = match;
+  const { id, court, players, capacity, start_time } = match;
+
+  // Defensively create date objects to prevent crashes if start_time is missing.
+  const matchDate = start_time ? new Date(start_time) : null;
+  const displayTime = matchDate ? format(matchDate, 'HH:mm') : 'Hora inválida';
+  const displayDate = matchDate ? format(matchDate, "eeee d", { locale: es }) : 'Fecha inválida';
 
   return (
     <div className="bg-brand-light-dark rounded-xl shadow-lg border-2 border-dashed border-yellow-500/50 flex flex-col p-5 animate-slide-in-up">
       <div className="flex-grow">
         <div className="flex justify-between items-start mb-4">
             <div>
-                <p className="text-2xl font-bold text-white">{time}</p>
-                <p className="text-sm font-semibold text-slate-300 capitalize">{format(date, "eeee d", { locale: es })}</p>
+                <p className="text-2xl font-bold text-white">{displayTime}</p>
+                <p className="text-sm font-semibold text-slate-300 capitalize">{displayDate}</p>
                 <div className="flex items-center text-sm text-slate-400 mt-1">
                     <TennisRacketIcon className="w-4 h-4 mr-2"/>
                     {court.name}

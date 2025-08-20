@@ -102,7 +102,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ courts, players, openin
                           </div>
                       </div>
                       {courts.map(court => {
-                        const matchOnSlot = matches.find(m => m.court.id === court.id && m.time === time);
+                        const matchOnSlot = matches.find(m => 
+                            m.court.id === court.id && m.start_time && format(new Date(m.start_time), 'HH:mm') === time
+                        );
 
                         if (matchOnSlot) {
                             switch (matchOnSlot.status) {

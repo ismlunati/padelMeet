@@ -17,18 +17,21 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, current
   const [matches, setMatches] = useState<Match[]>([]);
   const [timeSlotRequests, setTimeSlotRequests] = useState<TimeSlotRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const dayOfWeek = getDay(currentDate);
   const slotTimes = openingHours[dayOfWeek] || [];
 
   const fetchSchedule = useCallback(async (date: Date) => {
     setIsLoading(true);
+    setError(null);
     try {
         const { matches, time_slot_requests } = await courtService.fetchScheduleForDate(date);
         setMatches(matches);
         setTimeSlotRequests(time_slot_requests);
     } catch (error) {
         console.error(`Failed to fetch schedule for ${date}:`, error);
+        setError("No se pudo cargar la disponibilidad de las pistas. El endpoint del calendario podría no estar disponible.");
         setMatches([]);
         setTimeSlotRequests([]);
     } finally {
@@ -64,19 +67,32 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, current
       }
   }
 
-  return (
-    <div className="bg-brand-light-dark p-4 sm:p-6 rounded-xl border border-brand-stroke shadow-2xl">
-      <DateNavigator currentDate={currentDate} onDateChange={setCurrentDate} />
+  const renderContent = () => {
+      if (isLoading) {
+          return <div className="text-center py-10 text-slate-400">Cargando disponibilidad...</div>;
+      }
+      if (error) {
+          return (
+              <div className="text-center py-10 bg-red-900/20 rounded-lg border border-dashed border-red-500/50">
+                  <p className="font-bold text-red-300">Error</p>
+                  <p className="text-slate-400">{error}</p>
+              </div>
+          );
+      }
+      if (slotTimes.length === 0) {
+          return (
+              <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
+                  <p className="text-slate-400">No hay pistas disponibles en este día.</p>
+              </div>
+          );
+      }
 
-      <div className="overflow-x-auto">
-        {isLoading ? (
-          <div className="text-center py-10 text-slate-400">Cargando disponibilidad...</div>
-        ) : slotTimes.length > 0 ? (
-            <div className="grid gap-px bg-brand-stroke border border-brand-stroke" style={{ gridTemplateColumns: `minmax(6rem, auto) repeat(${courts.length}, 1fr)` }}>
+      return (
+          <div className="grid gap-px bg-brand-stroke border border-brand-stroke" style={{ gridTemplateColumns: `minmax(6rem, auto) repeat(${courts.length}, 1fr)` }}>
               {/* Header Row */}
-              <div className="bg-brand-dark p-3 text-center font-bold">Hora</div>
+              <div className="bg-brand-dark p-3 text-center font-bold sticky top-0 z-10">Hora</div>
               {courts.map(court => (
-                <div key={court.id} className="bg-brand-dark p-3 text-center font-bold text-white break-words">
+                <div key={court.id} className="bg-brand-dark p-3 text-center font-bold text-white break-words sticky top-0 z-10">
                   {court.name}
                 </div>
               ))}
@@ -92,11 +108,13 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, current
                         {hasUserRequestedThisSlot && <span className="block text-xs font-normal opacity-80">(Apuntado)</span>}
                     </div>
                     {courts.map(court => {
-                      const matchOnSlot = matches.find(m => m.court.id === court.id && m.time === time);
+                      const matchOnSlot = matches.find(m => 
+                          m.court.id === court.id && m.start_time && format(new Date(m.start_time), 'HH:mm') === time
+                      );
 
                       if (matchOnSlot) {
                           return (
-                              <div key={court.id} className={`p-2 text-center text-sm flex flex-col justify-center items-center ${getStatusClass(matchOnSlot.status)}`}>
+                              <div key={court.id} className={`p-2 text-center text-sm flex flex-col justify-center items-center h-20 ${getStatusClass(matchOnSlot.status)}`}>
                                   <p className="font-bold">{getStatusText(matchOnSlot.status)}</p>
                                   {(matchOnSlot.status === 'ORGANIZING' || matchOnSlot.status === 'CONFIRMED') &&
                                       <p className="text-xs opacity-80">{matchOnSlot.players.length} / 4 Jugadores</p>
@@ -106,7 +124,7 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, current
                       }
                       
                       return (
-                        <div key={court.id} className={`p-2 text-center text-sm flex items-center justify-center ${hasUserRequestedThisSlot ? 'bg-teal-900/20' : 'bg-brand-light-dark'}`}>
+                        <div key={court.id} className={`p-2 text-center text-sm flex items-center justify-center h-20 ${hasUserRequestedThisSlot ? 'bg-teal-900/20' : 'bg-brand-light-dark'}`}>
                           <button 
                             onClick={() => handleSlotClick(court, time)}
                             className="w-full h-full bg-brand-stroke text-slate-300 rounded-md hover:bg-brand-primary hover:text-brand-dark font-semibold transition-colors"
@@ -120,11 +138,15 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, current
                 )
               })}
             </div>
-        ) : (
-             <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
-                <p className="text-slate-400">No hay pistas disponibles en este día.</p>
-            </div>
-        )}
+      );
+  };
+
+  return (
+    <div className="bg-brand-light-dark p-4 sm:p-6 rounded-xl border border-brand-stroke shadow-2xl">
+      <DateNavigator currentDate={currentDate} onDateChange={setCurrentDate} />
+
+      <div className="overflow-x-auto">
+        {renderContent()}
       </div>
     </div>
   );

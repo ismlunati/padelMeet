@@ -14,8 +14,7 @@ const InvitationModal: React.FC<InvitationModalProps> = ({ match, slotInfo, allP
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
 
-    const contextTime = match?.time || slotInfo?.time;
-    const contextDate = match?.date || slotInfo?.date;
+    const contextTime = match && match.start_time ? format(new Date(match.start_time), 'HH:mm') : slotInfo?.time;
 
     const filteredPlayers = useMemo(() => {
         const alreadyInMatchOrInvited = new Set(match ? [...match.players.map(p => p.id), ...match.invitedPlayerIds] : []);
