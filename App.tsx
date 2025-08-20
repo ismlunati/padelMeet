@@ -1,124 +1,179 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { Court, ViewState } from './types';
+import { Match, Player, Court, SlotInfo, TimeSlotRequest } from './types';
 import { courtService } from './services/courtService';
 import Header from './components/Header';
-import CourtList from './components/CourtList';
-import TimeSlotPicker from './components/TimeSlotPicker';
-import BookingConfirmation from './components/BookingConfirmation';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale/es';
-import Calendar from './components/Calendar';
+import PlayerDashboard from './components/CourtList';
+import AdminDashboard from './components/TimeSlotPicker';
+import InvitationModal from './components/InvitationModal';
+import PlayerActionModal from './components/PlayerActionModal';
+
+// Mock users with roles
+const mockUsers: { [key: string]: Player } = {
+    admin: { id: 'p1', name: 'Club Admin', avatarUrl: 'https://i.pravatar.cc/150?u=admin', role: 'admin' },
+    player: { id: 'p8', name: 'Serena Williams', avatarUrl: 'https://i.pravatar.cc/150?u=serena', role: 'player' },
+};
 
 const App: React.FC = () => {
-    const [view, setView] = useState<ViewState>(ViewState.LIST);
+    const [currentUser, setCurrentUser] = useState<Player>(mockUsers.player);
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [allPlayers, setAllPlayers] = useState<Player[]>([]);
     const [courts, setCourts] = useState<Court[]>([]);
-    const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
-    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [timeSlotRequests, setTimeSlotRequests] = useState<TimeSlotRequest[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
+    
+    // State for modals
+    const [isInvitationModalOpen, setInvitationModalOpen] = useState<boolean>(false);
+    const [contextForInvitation, setContextForInvitation] = useState<{ match?: Match, slotInfo?: SlotInfo }>({});
+    
+    const [isPlayerActionModalOpen, setPlayerActionModalOpen] = useState<boolean>(false);
+    const [selectedSlot, setSelectedSlot] = useState<SlotInfo | null>(null);
+
+    const fetchAllData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [fetchedMatches, fetchedPlayers, fetchedCourts, fetchedRequests] = await Promise.all([
+                courtService.fetchAllMatches(),
+                courtService.fetchAllPlayers(),
+                courtService.fetchCourts(),
+                courtService.fetchTimeSlotRequests(),
+            ]);
+            setMatches(fetchedMatches);
+            setAllPlayers(fetchedPlayers);
+            setCourts(fetchedCourts);
+            setTimeSlotRequests(fetchedRequests);
+        } catch (error) {
+            console.error("Failed to fetch data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchCourts = async () => {
-            setIsLoading(true);
-            try {
-                const fetchedCourts = await courtService.fetchCourts();
-                setCourts(fetchedCourts);
-            } catch (error) {
-                console.error("Failed to fetch courts:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchCourts();
-    }, []);
+        fetchAllData();
+    }, [fetchAllData]);
 
-    const handleSelectCourt = useCallback((court: Court) => {
-        setSelectedCourt(court);
-        setView(ViewState.TIMES);
-    }, []);
+    // Admin Actions
+    const handleOpenInvitationModal = (context: { match?: Match, slotInfo?: SlotInfo }) => {
+        setContextForInvitation(context);
+        setInvitationModalOpen(true);
+    };
 
-    const handleDateChange = useCallback((date: Date) => {
-        setSelectedDate(date);
-    }, []);
-
-    const handleSelectTime = useCallback((time: string) => {
-        setSelectedTime(time);
-        setView(ViewState.CONFIRM);
-    }, []);
-
-    const handleConfirmBooking = useCallback(() => {
-        // Simulate booking
-        console.log(`Booking confirmed for ${selectedCourt?.name} on ${format(selectedDate, 'PPP', { locale: es })} at ${selectedTime}`);
-        setBookingSuccess(true);
-        setTimeout(() => {
-            setView(ViewState.LIST);
-            setSelectedCourt(null);
-            setSelectedTime(null);
-            setBookingSuccess(false);
-        }, 3000);
-    }, [selectedCourt, selectedDate, selectedTime]);
-
-    const handleBack = useCallback(() => {
-        if (view === ViewState.CONFIRM) {
-            setView(ViewState.TIMES);
-            setSelectedTime(null);
-        } else if (view === ViewState.TIMES) {
-            setView(ViewState.LIST);
-            setSelectedCourt(null);
+    const handleInvitationSubmit = async (playerIds: string[]) => {
+        const { match, slotInfo } = contextForInvitation;
+        if (match) { // Inviting to an existing match
+            await courtService.invitePlayersToMatch(match.id, playerIds);
+        } else if (slotInfo) { // Creating a new match and inviting
+            await courtService.createMatchAndInvite(slotInfo, currentUser, playerIds);
         }
-    }, [view]);
+        setInvitationModalOpen(false);
+        setContextForInvitation({});
+        fetchAllData();
+    };
+    
+    // Player Actions
+    const handleOpenPlayerActionModal = (slotInfo: SlotInfo) => {
+        setSelectedSlot(slotInfo);
+        setPlayerActionModalOpen(true);
+    };
 
+    const handleBookCourt = async () => {
+        if (!selectedSlot) return;
+        await courtService.bookCourt(selectedSlot.courtId, selectedSlot.date, selectedSlot.time, currentUser);
+        setPlayerActionModalOpen(false);
+        fetchAllData();
+    };
+
+    const handleAddTimeSlotRequest = async () => {
+        if (!selectedSlot) return;
+        await courtService.addTimeSlotRequest(currentUser.id, selectedSlot.date, selectedSlot.time);
+        setPlayerActionModalOpen(false);
+        fetchAllData();
+    };
+
+    const handleRespondToInvitation = async (matchId: string, response: 'ACCEPT' | 'DECLINE') => {
+        try {
+            await courtService.respondToInvitation(matchId, currentUser.id, response);
+            fetchAllData();
+        } catch (error: any) {
+            alert(error.message);
+        }
+    };
+
+    const toggleUserRole = () => {
+        const newRole = currentUser.role === 'admin' ? 'player' : 'admin';
+        const newUser = newRole === 'admin' 
+            ? mockUsers.admin 
+            : allPlayers.find(p => p.role === 'player' && p.id !== 'p1') || mockUsers.player;
+        setCurrentUser(newUser);
+    };
+    
     const renderContent = () => {
-        if (bookingSuccess) {
+        if (isLoading) {
+            return <div className="text-center text-slate-300 mt-10">Cargando...</div>;
+        }
+
+        if (currentUser.role === 'admin') {
             return (
-                <div className="flex flex-col items-center justify-center text-center p-8 animate-fade-in h-[60vh]">
-                    <svg className="w-24 h-24 text-brand-primary mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <h2 className="text-3xl font-bold text-white mb-2">¡Reserva Confirmada!</h2>
-                    <p className="text-slate-300">Hemos enviado los detalles a tu correo. ¡A disfrutar del partido!</p>
-                </div>
+                <AdminDashboard 
+                    key={currentUser.id} 
+                    matches={matches}
+                    courts={courts}
+                    players={allPlayers}
+                    timeSlotRequests={timeSlotRequests}
+                    onOpenInviteModal={handleOpenInvitationModal} 
+                />
             );
         }
         
-        switch (view) {
-            case ViewState.TIMES:
-                if (selectedCourt) {
-                    return <TimeSlotPicker court={selectedCourt} date={selectedDate} onSelectTime={handleSelectTime} onBack={handleBack} />;
-                }
-                return null;
-            case ViewState.CONFIRM:
-                if (selectedCourt && selectedTime) {
-                    return <BookingConfirmation court={selectedCourt} date={selectedDate} time={selectedTime} onConfirm={handleConfirmBooking} onBack={handleBack} />;
-                }
-                return null;
-            case ViewState.LIST:
-            default:
-                return (
-                    <div className="lg:grid lg:grid-cols-12 lg:gap-8">
-                        <div className="lg:col-span-4 xl:col-span-3 mb-8 lg:mb-0">
-                            <Calendar selectedDate={selectedDate} onDateChange={handleDateChange} />
-                        </div>
-                        <div className="lg:col-span-8 xl:col-span-9">
-                            <div className="mb-4 animate-fade-in">
-                               <h2 className="text-2xl font-bold text-white">Pistas Disponibles</h2>
-                               <p className="text-slate-400 capitalize">
-                                 para el {format(selectedDate, "eeee, d 'de' MMMM", { locale: es })}
-                               </p>
-                            </div>
-                            <CourtList courts={courts} onSelectCourt={handleSelectCourt} isLoading={isLoading} />
-                        </div>
-                    </div>
-                );
-        }
+        return (
+            <PlayerDashboard 
+                matches={matches} 
+                courts={courts}
+                currentUser={currentUser}
+                timeSlotRequests={timeSlotRequests}
+                onRespondToInvitation={handleRespondToInvitation}
+                onSlotClick={handleOpenPlayerActionModal}
+                isLoading={isLoading} 
+            />
+        );
     };
 
     return (
         <div className="min-h-screen bg-brand-dark text-white font-sans">
-            <Header />
+            <Header>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                     <span className="text-sm text-slate-400 mr-4 hidden sm:inline">
+                        Vista como: <span className="font-bold text-white">{currentUser.name} ({currentUser.role})</span>
+                    </span>
+                    <button
+                        onClick={toggleUserRole}
+                        className="bg-brand-stroke text-white font-bold py-2 px-4 rounded-lg text-sm hover:bg-slate-700 transition-colors"
+                    >
+                        Cambiar Rol
+                    </button>
+                </div>
+            </Header>
             <main className="container mx-auto px-4 py-8">
                 {renderContent()}
             </main>
+            {isInvitationModalOpen && (
+                <InvitationModal
+                    match={contextForInvitation.match || null}
+                    slotInfo={contextForInvitation.slotInfo || null}
+                    allPlayers={allPlayers.filter(p => p.id !== currentUser.id)}
+                    timeSlotRequests={timeSlotRequests}
+                    onClose={() => setInvitationModalOpen(false)}
+                    onSubmit={handleInvitationSubmit}
+                />
+            )}
+            {isPlayerActionModalOpen && selectedSlot && (
+                <PlayerActionModal
+                    slotInfo={selectedSlot}
+                    onClose={() => setPlayerActionModalOpen(false)}
+                    onBookCourt={handleBookCourt}
+                    onAddTimeSlotRequest={handleAddTimeSlotRequest}
+                />
+            )}
         </div>
     );
 };

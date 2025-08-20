@@ -1,49 +1,55 @@
-
 import React from 'react';
-import { Court } from '../types';
-import { MapPinIcon, CurrencyEuroIcon, TennisRacketIcon } from './IconComponents';
+import { Match } from '../types';
+import { UsersIcon, TennisRacketIcon } from './IconComponents';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale/es';
 
-interface CourtCardProps {
-  court: Court;
-  onSelectCourt: (court: Court) => void;
+interface MatchCardProps {
+  match: Match;
 }
 
-const CourtCard: React.FC<CourtCardProps> = ({ court, onSelectCourt }) => {
+const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
+  const { court, time, players, capacity, date } = match;
+
   return (
-    <div className="bg-brand-light-dark rounded-xl overflow-hidden shadow-lg border border-brand-stroke transform hover:-translate-y-1 transition-all duration-300 hover:shadow-2xl hover:shadow-brand-primary/10 group">
-      <div className="relative">
-        <img className="w-full h-48 object-cover" src={court.imageUrl} alt={court.name} />
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-black/80 to-transparent"></div>
-        <div className="absolute bottom-0 left-0 p-4">
-            <h3 className="text-xl font-bold text-white">{court.name}</h3>
+    <div className="bg-brand-light-dark rounded-xl shadow-lg border border-brand-stroke flex flex-col p-5 animate-slide-in-up">
+      <div className="flex-grow">
+        <div className="flex justify-between items-start mb-4">
+            <div>
+                <p className="text-2xl font-bold text-white">{time}</p>
+                 <p className="text-sm font-semibold text-slate-300 capitalize">{format(date, "eeee d", { locale: es })}</p>
+                <div className="flex items-center text-sm text-slate-400 mt-1">
+                    <TennisRacketIcon className="w-4 h-4 mr-2"/>
+                    {court.name}
+                </div>
+            </div>
+            <div className={`text-right ${match.status === 'CONFIRMED' ? 'text-green-400' : 'text-yellow-400'}`}>
+                <div className="flex items-center justify-end font-semibold">
+                    <UsersIcon className="w-5 h-5 mr-1.5" />
+                    <span>{players.length}/{capacity}</span>
+                </div>
+                <p className="text-sm">{match.status === 'CONFIRMED' ? 'Confirmado' : 'Organizando'}</p>
+            </div>
         </div>
-      </div>
-      <div className="p-5">
-        <div className="flex items-center text-slate-400 mb-2">
-            <MapPinIcon className="w-4 h-4 mr-2 text-brand-secondary" />
-            <span>{court.location}</span>
-        </div>
-        <div className="flex items-center text-slate-400 mb-4">
-            <TennisRacketIcon className="w-4 h-4 mr-2 text-brand-secondary" />
-            <span>Superficie: {court.surface}</span>
-        </div>
-        
-        <div className="flex justify-between items-center">
-            <p className="text-xl font-semibold text-white flex items-center">
-                <CurrencyEuroIcon className="w-5 h-5 mr-1 text-brand-primary" />
-                {court.pricePerHour}
-                <span className="text-sm font-normal text-slate-400 ml-1">/ hora</span>
-            </p>
-            <button
-            onClick={() => onSelectCourt(court)}
-            className="bg-gradient-to-r from-brand-primary to-brand-secondary text-brand-dark font-bold py-2 px-5 rounded-lg transform transition-transform duration-300 group-hover:scale-105 shadow-md hover:shadow-lg hover:shadow-brand-primary/40"
-            >
-            Ver Horarios
-            </button>
+
+        <div>
+            <p className="font-semibold text-white mb-2">Jugadores:</p>
+            <div className="flex flex-wrap -space-x-2">
+                {players.map(player => (
+                    <img
+                        key={player.id}
+                        className="w-10 h-10 rounded-full border-2 border-brand-dark"
+                        src={player.avatarUrl}
+                        alt={player.name}
+                        title={player.name}
+                    />
+                ))}
+            </div>
+             {players.length === 0 && <p className="text-sm text-slate-500">Aún no hay jugadores confirmados.</p>}
         </div>
       </div>
     </div>
   );
 };
 
-export default CourtCard;
+export default MatchCard;

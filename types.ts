@@ -1,20 +1,45 @@
+export interface Player {
+    id: string;
+    name: string;
+    avatarUrl: string;
+    role: 'admin' | 'player';
+    phoneNumber?: string; // Optional for WhatsApp integration
+}
 
 export interface Court {
   id: string;
   name: string;
-  location: string;
-  pricePerHour: number;
-  imageUrl: string;
-  surface: 'Clay' | 'Hard' | 'Grass';
 }
 
-export interface TimeSlot {
+export interface Match {
+  id: string;
+  court: Court;
+  date: Date;
   time: string;
-  isAvailable: boolean;
+  players: Player[]; // Confirmed players
+  invitedPlayerIds: string[]; // IDs of players who have been invited
+  capacity: number;
+  status: 'ORGANIZING' | 'CONFIRMED' | 'BOOKED';
+  bookedById?: string; // Player ID who booked the full court
 }
+
+// Represents a player's interest in a specific time slot on a specific day
+export interface TimeSlotRequest {
+  playerId: string;
+  date: Date;
+  time: string;
+}
+
+export interface SlotInfo {
+  courtId: string;
+  courtName: string;
+  time: string;
+  date: Date;
+}
+
 
 export enum ViewState {
-  LIST = 'LIST',
-  TIMES = 'TIMES',
-  CONFIRM = 'CONFIRM',
+  // Although we removed clubs, we can repurpose this for the default match list view
+  LIST_CLUBS = 'LIST_CLUBS', 
+  // Other views can be added later if needed
 }

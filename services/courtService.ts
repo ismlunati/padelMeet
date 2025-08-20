@@ -1,84 +1,173 @@
+import { Court, Match, Player, TimeSlotRequest, SlotInfo } from '../types';
+import { format } from 'date-fns';
 
-import { Court, TimeSlot } from '../types';
-
+// Simplified static data for a single club
 const courts: Court[] = [
-  {
-    id: '1',
-    name: 'Pista Central - Cristal',
-    location: 'Club Padel Indoor Center',
-    pricePerHour: 24,
-    imageUrl: 'https://picsum.photos/seed/padel1/600/400',
-    surface: 'Hard',
-  },
-  {
-    id: '2',
-    name: 'Pista Panorámica',
-    location: 'Club Padel Indoor Center',
-    pricePerHour: 28,
-    imageUrl: 'https://picsum.photos/seed/padel2/600/400',
-    surface: 'Hard',
-  },
-  {
-    id: '3',
-    name: 'Pista Outdoor 1',
-    location: 'City Padel Club',
-    pricePerHour: 18,
-    imageUrl: 'https://picsum.photos/seed/padel3/600/400',
-    surface: 'Clay',
-  },
-  {
-    id: '4',
-    name: 'Pista de Competición',
-    location: 'Pro Padel Academy',
-    pricePerHour: 30,
-    imageUrl: 'https://picsum.photos/seed/padel4/600/400',
-    surface: 'Hard',
-  },
-    {
-    id: '5',
-    name: 'Pista Norte',
-    location: 'City Padel Club',
-    pricePerHour: 18,
-    imageUrl: 'https://picsum.photos/seed/padel5/600/400',
-    surface: 'Clay',
-  },
-  {
-    id: '6',
-    name: 'Pista VIP',
-    location: 'Pro Padel Academy',
-    pricePerHour: 35,
-    imageUrl: 'https://picsum.photos/seed/padel6/600/400',
-    surface: 'Hard',
-  },
+  { id: '1', name: 'Pista Central' },
+  { id: '2', name: 'Pista 2' },
+  { id: '3', name: 'Pista 3' },
 ];
 
-const generateTimeSlots = (date: Date): TimeSlot[] => {
-    const slots: TimeSlot[] = [];
-    for (let i = 9; i <= 22; i++) {
-        slots.push({ time: `${i}:00`, isAvailable: Math.random() > 0.3 });
-        if (i < 22) {
-           slots.push({ time: `${i}:30`, isAvailable: Math.random() > 0.3 });
-        }
-    }
-    return slots;
-};
+const allPlayers: Player[] = [
+    { id: 'p1', name: 'Club Admin', avatarUrl: 'https://i.pravatar.cc/150?u=admin', role: 'admin' },
+    { id: 'p2', name: 'Maria Sharapova', avatarUrl: 'https://i.pravatar.cc/150?u=maria', role: 'player' },
+    { id: 'p3', name: 'Carlos Alcaraz', avatarUrl: 'https://i.pravatar.cc/150?u=carlos', role: 'player' },
+    { id: 'p4', name: 'Laura Martinez', avatarUrl: 'https://i.pravatar.cc/150?u=laura', role: 'player' },
+    { id: 'p5', name: 'David Ferrer', avatarUrl: 'https://i.pravatar.cc/150?u=david', role: 'player' },
+    { id: 'p6', name: 'Sofia Kenin', avatarUrl: 'https://i.pravatar.cc/150?u=sofia', role: 'player' },
+    { id: 'p7', name: 'Rafael Nadal', avatarUrl: 'https://i.pravatar.cc/150?u=rafa', role: 'player' },
+    { id: 'p8', name: 'Serena Williams', avatarUrl: 'https://i.pravatar.cc/150?u=serena', role: 'player' },
+];
 
+// In-memory "database" of matches
+let matches: Match[] = [
+    {
+        id: 'm1',
+        court: courts[0],
+        date: new Date(),
+        time: '18:00',
+        players: [allPlayers[1], allPlayers[2], allPlayers[3], allPlayers[4]],
+        invitedPlayerIds: [],
+        capacity: 4,
+        status: 'CONFIRMED',
+    },
+    {
+        id: 'm2',
+        court: courts[1],
+        date: new Date(),
+        time: '19:30',
+        players: [allPlayers[0]],
+        invitedPlayerIds: [allPlayers[6].id, allPlayers[7].id],
+        capacity: 4,
+        status: 'ORGANIZING',
+    },
+    {
+        id: 'm4',
+        court: courts[0],
+        date: new Date(),
+        time: '10:30',
+        players: [],
+        invitedPlayerIds: [],
+        capacity: 4,
+        status: 'BOOKED',
+        bookedById: allPlayers[5].id,
+    }
+];
+
+let timeSlotRequests: TimeSlotRequest[] = [
+    { playerId: allPlayers[2].id, date: new Date(), time: '21:00' },
+    { playerId: allPlayers[4].id, date: new Date(), time: '21:00' },
+];
 
 export const courtService = {
   fetchCourts: (): Promise<Court[]> => {
-    return new Promise(resolve => {
-      setTimeout(() => {
-        resolve(courts);
-      }, 1000); // Simulate network delay
-    });
+    return new Promise(resolve => resolve(courts));
+  },
+  
+  fetchAllPlayers: (): Promise<Player[]> => {
+      return new Promise(resolve => resolve(allPlayers));
   },
 
-  fetchAvailability: (courtId: string, date: Date): Promise<TimeSlot[]> => {
-     console.log(`Fetching availability for court ${courtId} on date ${date.toISOString()}`);
-     return new Promise(resolve => {
-         setTimeout(() => {
-             resolve(generateTimeSlots(date));
-         }, 500); // Simulate network delay
-     });
-  }
+  fetchAllMatches: (): Promise<Match[]> => {
+      return new Promise(resolve => setTimeout(() => resolve([...matches]), 300));
+  },
+  
+  fetchTimeSlotRequests: (): Promise<TimeSlotRequest[]> => {
+      return new Promise(resolve => setTimeout(() => resolve([...timeSlotRequests]), 100));
+  },
+
+  addTimeSlotRequest: (playerId: string, date: Date, time: string): Promise<TimeSlotRequest> => {
+      return new Promise((resolve, reject) => {
+          const alreadyRequested = timeSlotRequests.some(
+              req => req.playerId === playerId && req.time === time && format(req.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+          );
+          if (alreadyRequested) {
+              // Optionally, you could reject or just resolve without adding.
+              // For a good UX, we'll just ignore the duplicate request.
+              const existing = timeSlotRequests.find(req => req.playerId === playerId && req.time === time)!;
+              return resolve(existing);
+          }
+          const newRequest: TimeSlotRequest = { playerId, date, time };
+          timeSlotRequests.push(newRequest);
+          resolve(newRequest);
+      });
+  },
+
+  createMatchAndInvite: (slotInfo: SlotInfo, admin: Player, playerIdsToInvite: string[]): Promise<Match> => {
+      return new Promise((resolve, reject) => {
+          const court = courts.find(c => c.id === slotInfo.courtId);
+          if (!court) return reject(new Error("Court not found"));
+
+          const newMatch: Match = {
+              id: `m${Date.now()}`,
+              court,
+              date: slotInfo.date,
+              time: slotInfo.time,
+              players: [admin],
+              invitedPlayerIds: playerIdsToInvite,
+              capacity: 4,
+              status: 'ORGANIZING'
+          };
+          matches.push(newMatch);
+          // When a match is created, remove the requests for that time slot
+          timeSlotRequests = timeSlotRequests.filter(req => req.time !== slotInfo.time || format(req.date, 'yyyy-MM-dd') !== format(slotInfo.date, 'yyyy-MM-dd'));
+          resolve(newMatch);
+      });
+  },
+
+  invitePlayersToMatch: (matchId: string, playerIds: string[]): Promise<Match> => {
+      return new Promise((resolve, reject) => {
+          const matchIndex = matches.findIndex(m => m.id === matchId);
+          if (matchIndex === -1) return reject(new Error("Match not found"));
+          
+          const existingInvites = matches[matchIndex].invitedPlayerIds;
+          const newInvites = playerIds.filter(id => !existingInvites.includes(id));
+          matches[matchIndex].invitedPlayerIds.push(...newInvites);
+
+          resolve(matches[matchIndex]);
+      });
+  },
+  
+  respondToInvitation: (matchId: string, playerId: string, response: 'ACCEPT' | 'DECLINE'): Promise<Match> => {
+      return new Promise((resolve, reject) => {
+          const matchIndex = matches.findIndex(m => m.id === matchId);
+          if (matchIndex === -1) return reject(new Error("Match not found"));
+          
+          const match = matches[matchIndex];
+          
+          match.invitedPlayerIds = match.invitedPlayerIds.filter(id => id !== playerId);
+
+          if (response === 'ACCEPT') {
+              if (match.players.length >= match.capacity) {
+                  return reject(new Error("Lo sentimos, ¡el partido ya está completo!"));
+              }
+              const player = allPlayers.find(p => p.id === playerId);
+              if (player && !match.players.some(p => p.id === playerId)) {
+                  match.players.push(player);
+              }
+              if (match.players.length === match.capacity) {
+                  match.status = 'CONFIRMED';
+                  match.invitedPlayerIds = [];
+              }
+          }
+          
+          matches[matchIndex] = match;
+          resolve(match);
+      });
+  },
+
+  bookCourt: (courtId: string, date: Date, time: string, player: Player): Promise<Match> => {
+    return new Promise((resolve, reject) => {
+        const court = courts.find(c => c.id === courtId);
+        if (!court) return reject(new Error("Court not found"));
+
+        const newBooking: Match = {
+            id: `m${Date.now()}`, court, date, time,
+            players: [], invitedPlayerIds: [], capacity: 4, status: 'BOOKED',
+            bookedById: player.id
+        };
+        matches.push(newBooking);
+        resolve(newBooking);
+    });
+  },
 };
