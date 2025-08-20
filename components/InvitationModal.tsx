@@ -1,41 +1,30 @@
 import React, { useState, useMemo } from 'react';
-import { Match, Player, SlotInfo, TimeSlotRequest } from '../types';
+import { Match, Player, SlotInfo } from '../types';
 import { format } from 'date-fns';
 
 interface InvitationModalProps {
     match: Match | null;
     slotInfo: SlotInfo | null;
     allPlayers: Player[];
-    timeSlotRequests: TimeSlotRequest[];
     onClose: () => void;
     onSubmit: (playerIds: string[]) => void;
 }
 
-const InvitationModal: React.FC<InvitationModalProps> = ({ match, slotInfo, allPlayers, timeSlotRequests, onClose, onSubmit }) => {
+const InvitationModal: React.FC<InvitationModalProps> = ({ match, slotInfo, allPlayers, onClose, onSubmit }) => {
     const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
 
     const contextTime = match?.time || slotInfo?.time;
     const contextDate = match?.date || slotInfo?.date;
 
-    const { interestedPlayers, otherPlayers } = useMemo(() => {
+    const filteredPlayers = useMemo(() => {
         const alreadyInMatchOrInvited = new Set(match ? [...match.players.map(p => p.id), ...match.invitedPlayerIds] : []);
         
-        const interestedPlayerIds = new Set(
-            timeSlotRequests
-                .filter(req => req.time === contextTime && format(req.date, 'yyyy-MM-dd') === format(contextDate!, 'yyyy-MM-dd'))
-                .map(req => req.playerId)
-        );
-
-        const filteredPlayers = allPlayers
+        return allPlayers
             .filter(p => !alreadyInMatchOrInvited.has(p.id))
             .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
             
-        const interested = filteredPlayers.filter(p => interestedPlayerIds.has(p.id));
-        const others = filteredPlayers.filter(p => !interestedPlayerIds.has(p.id));
-
-        return { interestedPlayers: interested, otherPlayers: others };
-    }, [allPlayers, match, timeSlotRequests, contextTime, contextDate, searchTerm]);
+    }, [allPlayers, match, searchTerm]);
 
     const handlePlayerToggle = (playerId: string) => {
         setSelectedPlayerIds(prev =>
@@ -81,27 +70,11 @@ const InvitationModal: React.FC<InvitationModalProps> = ({ match, slotInfo, allP
                         className="w-full bg-brand-dark border border-brand-stroke rounded-lg px-4 py-2 mb-4 text-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     />
                     
-                    <div className="space-y-4">
-                        {interestedPlayers.length > 0 && (
-                            <div>
-                                <h3 className="text-sm font-bold text-cyan-400 mb-2">JUGADORES INTERESADOS</h3>
-                                <div className="space-y-3">
-                                    {interestedPlayers.map(player => <PlayerRow key={player.id} player={player} />)}
-                                </div>
-                            </div>
-                        )}
-                        
-                        {otherPlayers.length > 0 && (
-                             <div>
-                                <h3 className="text-sm font-bold text-slate-400 mb-2">OTROS JUGADORES</h3>
-                                <div className="space-y-3">
-                                    {otherPlayers.map(player => <PlayerRow key={player.id} player={player} />)}
-                                </div>
-                            </div>
-                        )}
-
-                        {interestedPlayers.length === 0 && otherPlayers.length === 0 && (
-                            <p className="text-slate-400 text-center py-4">No hay jugadores disponibles.</p>
+                    <div className="space-y-3">
+                        {filteredPlayers.length > 0 ? (
+                            filteredPlayers.map(player => <PlayerRow key={player.id} player={player} />)
+                        ) : (
+                            <p className="text-slate-400 text-center py-4">No hay jugadores disponibles para invitar.</p>
                         )}
                     </div>
                 </div>

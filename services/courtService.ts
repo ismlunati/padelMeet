@@ -1,173 +1,176 @@
-import { Court, Match, Player, TimeSlotRequest, SlotInfo } from '../types';
+import { Court, Match, Player, TimeSlotRequest, SlotInfo, OpeningHours } from '../types';
 import { format } from 'date-fns';
 
-// Simplified static data for a single club
-const courts: Court[] = [
-  { id: '1', name: 'Pista Central' },
-  { id: '2', name: 'Pista 2' },
-  { id: '3', name: 'Pista 3' },
-];
+const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
-const allPlayers: Player[] = [
-    { id: 'p1', name: 'Club Admin', avatarUrl: 'https://i.pravatar.cc/150?u=admin', role: 'admin' },
-    { id: 'p2', name: 'Maria Sharapova', avatarUrl: 'https://i.pravatar.cc/150?u=maria', role: 'player' },
-    { id: 'p3', name: 'Carlos Alcaraz', avatarUrl: 'https://i.pravatar.cc/150?u=carlos', role: 'player' },
-    { id: 'p4', name: 'Laura Martinez', avatarUrl: 'https://i.pravatar.cc/150?u=laura', role: 'player' },
-    { id: 'p5', name: 'David Ferrer', avatarUrl: 'https://i.pravatar.cc/150?u=david', role: 'player' },
-    { id: 'p6', name: 'Sofia Kenin', avatarUrl: 'https://i.pravatar.cc/150?u=sofia', role: 'player' },
-    { id: 'p7', name: 'Rafael Nadal', avatarUrl: 'https://i.pravatar.cc/150?u=rafa', role: 'player' },
-    { id: 'p8', name: 'Serena Williams', avatarUrl: 'https://i.pravatar.cc/150?u=serena', role: 'player' },
-];
-
-// In-memory "database" of matches
-let matches: Match[] = [
-    {
-        id: 'm1',
-        court: courts[0],
-        date: new Date(),
-        time: '18:00',
-        players: [allPlayers[1], allPlayers[2], allPlayers[3], allPlayers[4]],
-        invitedPlayerIds: [],
-        capacity: 4,
-        status: 'CONFIRMED',
-    },
-    {
-        id: 'm2',
-        court: courts[1],
-        date: new Date(),
-        time: '19:30',
-        players: [allPlayers[0]],
-        invitedPlayerIds: [allPlayers[6].id, allPlayers[7].id],
-        capacity: 4,
-        status: 'ORGANIZING',
-    },
-    {
-        id: 'm4',
-        court: courts[0],
-        date: new Date(),
-        time: '10:30',
-        players: [],
-        invitedPlayerIds: [],
-        capacity: 4,
-        status: 'BOOKED',
-        bookedById: allPlayers[5].id,
+// Helper to handle API responses and errors
+const handleResponse = async (response: Response) => {
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'An unknown error occurred' }));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-];
+    const data = await response.json();
+    return parseDates(data); // Recursively parse date strings into Date objects
+};
 
-let timeSlotRequests: TimeSlotRequest[] = [
-    { playerId: allPlayers[2].id, date: new Date(), time: '21:00' },
-    { playerId: allPlayers[4].id, date: new Date(), time: '21:00' },
-];
+// Helper to get authorization headers
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) throw new Error('No auth token found. Please log in.');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
+};
+
+// Helper to recursively parse ISO date strings in API responses into Date objects
+const parseDates = (data: any): any => {
+    if (!data || typeof data !== 'object') return data;
+    if (Array.isArray(data)) return data.map(parseDates);
+
+    const newObj: { [key: string]: any } = {};
+    for (const key in data) {
+        if (key === 'date' && typeof data[key] === 'string' && /^\d{4}-\d{2}-\d{2}/.test(data[key])) {
+            // Adjust for timezone to avoid off-by-one day errors
+            newObj[key] = new Date(data[key] + 'T00:00:00');
+        } else if (typeof data[key] === 'object') {
+            newObj[key] = parseDates(data[key]);
+        } else {
+            newObj[key] = data[key];
+        }
+    }
+    return newObj;
+};
+
 
 export const courtService = {
-  fetchCourts: (): Promise<Court[]> => {
-    return new Promise(resolve => resolve(courts));
-  },
-  
-  fetchAllPlayers: (): Promise<Player[]> => {
-      return new Promise(resolve => resolve(allPlayers));
-  },
+    // --- Auth ---
+    login: async (email: string, password: string): Promise<{ token: string, user: Player }> => {
+        // Switched to 'application/x-www-form-urlencoded' to match standard FastAPI OAuth2 endpoints,
+        // which resolves the 422 Unprocessable Entity error. The endpoint expects form data, not JSON.
+        const formData = new URLSearchParams();
+        formData.append('username', email); // The OAuth2 standard form field is 'username'.
+        formData.append('password', password);
 
-  fetchAllMatches: (): Promise<Match[]> => {
-      return new Promise(resolve => setTimeout(() => resolve([...matches]), 300));
-  },
-  
-  fetchTimeSlotRequests: (): Promise<TimeSlotRequest[]> => {
-      return new Promise(resolve => setTimeout(() => resolve([...timeSlotRequests]), 100));
-  },
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData,
+        });
 
-  addTimeSlotRequest: (playerId: string, date: Date, time: string): Promise<TimeSlotRequest> => {
-      return new Promise((resolve, reject) => {
-          const alreadyRequested = timeSlotRequests.some(
-              req => req.playerId === playerId && req.time === time && format(req.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-          );
-          if (alreadyRequested) {
-              // Optionally, you could reject or just resolve without adding.
-              // For a good UX, we'll just ignore the duplicate request.
-              const existing = timeSlotRequests.find(req => req.playerId === playerId && req.time === time)!;
-              return resolve(existing);
-          }
-          const newRequest: TimeSlotRequest = { playerId, date, time };
-          timeSlotRequests.push(newRequest);
-          resolve(newRequest);
-      });
-  },
+        // We handle the response directly here to normalize the output,
+        // as the backend might return 'access_token' (FastAPI default) or 'token' (spec).
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Login failed. Check credentials.' }));
+            throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        }
 
-  createMatchAndInvite: (slotInfo: SlotInfo, admin: Player, playerIdsToInvite: string[]): Promise<Match> => {
-      return new Promise((resolve, reject) => {
-          const court = courts.find(c => c.id === slotInfo.courtId);
-          if (!court) return reject(new Error("Court not found"));
+        const data = await response.json();
+        
+        // The spec asked for 'token', but FastAPI's default is 'access_token'. We handle both.
+        const token = data.access_token || data.token;
+        const user = data.user;
 
-          const newMatch: Match = {
-              id: `m${Date.now()}`,
-              court,
-              date: slotInfo.date,
-              time: slotInfo.time,
-              players: [admin],
-              invitedPlayerIds: playerIdsToInvite,
-              capacity: 4,
-              status: 'ORGANIZING'
-          };
-          matches.push(newMatch);
-          // When a match is created, remove the requests for that time slot
-          timeSlotRequests = timeSlotRequests.filter(req => req.time !== slotInfo.time || format(req.date, 'yyyy-MM-dd') !== format(slotInfo.date, 'yyyy-MM-dd'));
-          resolve(newMatch);
-      });
-  },
+        if (!token || !user) {
+            throw new Error('Login response from server was invalid. Missing `token` or `user` field.');
+        }
 
-  invitePlayersToMatch: (matchId: string, playerIds: string[]): Promise<Match> => {
-      return new Promise((resolve, reject) => {
-          const matchIndex = matches.findIndex(m => m.id === matchId);
-          if (matchIndex === -1) return reject(new Error("Match not found"));
-          
-          const existingInvites = matches[matchIndex].invitedPlayerIds;
-          const newInvites = playerIds.filter(id => !existingInvites.includes(id));
-          matches[matchIndex].invitedPlayerIds.push(...newInvites);
+        return { token, user: parseDates(user) };
+    },
 
-          resolve(matches[matchIndex]);
-      });
-  },
-  
-  respondToInvitation: (matchId: string, playerId: string, response: 'ACCEPT' | 'DECLINE'): Promise<Match> => {
-      return new Promise((resolve, reject) => {
-          const matchIndex = matches.findIndex(m => m.id === matchId);
-          if (matchIndex === -1) return reject(new Error("Match not found"));
-          
-          const match = matches[matchIndex];
-          
-          match.invitedPlayerIds = match.invitedPlayerIds.filter(id => id !== playerId);
+    getMe: async (): Promise<Player> => {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    },
+    
+    // --- General Data ---
+    fetchCourts: async (): Promise<Court[]> => {
+        const response = await fetch(`${API_BASE_URL}/courts`, { headers: getAuthHeaders() });
+        return handleResponse(response);
+    },
 
-          if (response === 'ACCEPT') {
-              if (match.players.length >= match.capacity) {
-                  return reject(new Error("Lo sentimos, ¡el partido ya está completo!"));
-              }
-              const player = allPlayers.find(p => p.id === playerId);
-              if (player && !match.players.some(p => p.id === playerId)) {
-                  match.players.push(player);
-              }
-              if (match.players.length === match.capacity) {
-                  match.status = 'CONFIRMED';
-                  match.invitedPlayerIds = [];
-              }
-          }
-          
-          matches[matchIndex] = match;
-          resolve(match);
-      });
-  },
+    fetchAllPlayers: async (): Promise<Player[]> => {
+        const response = await fetch(`${API_BASE_URL}/players`, { headers: getAuthHeaders() });
+        return handleResponse(response);
+    },
 
-  bookCourt: (courtId: string, date: Date, time: string, player: Player): Promise<Match> => {
-    return new Promise((resolve, reject) => {
-        const court = courts.find(c => c.id === courtId);
-        if (!court) return reject(new Error("Court not found"));
+    fetchOpeningHours: async (): Promise<OpeningHours> => {
+        const response = await fetch(`${API_BASE_URL}/settings/opening-hours`, { headers: getAuthHeaders() });
+        return handleResponse(response);
+    },
 
-        const newBooking: Match = {
-            id: `m${Date.now()}`, court, date, time,
-            players: [], invitedPlayerIds: [], capacity: 4, status: 'BOOKED',
-            bookedById: player.id
+    updateOpeningHours: async (newHours: OpeningHours): Promise<OpeningHours> => {
+        const response = await fetch(`${API_BASE_URL}/settings/opening-hours`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ openingHours: newHours }),
+        });
+        return handleResponse(response);
+    },
+
+    // --- Schedule & Matches ---
+    fetchScheduleForDate: async (date: Date): Promise<{ matches: Match[], time_slot_requests: TimeSlotRequest[] }> => {
+        const dateString = format(date, 'yyyy-MM-dd');
+        const response = await fetch(`${API_BASE_URL}/schedule?date=${dateString}`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    },
+    
+    addTimeSlotRequest: async (date: Date, time: string): Promise<TimeSlotRequest> => {
+      return fetch(`${API_BASE_URL}/requests`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ date: format(date, 'yyyy-MM-dd'), time }),
+      }).then(handleResponse);
+    },
+
+    createMatchAndInvite: async (slotInfo: SlotInfo, playerIdsToInvite: string[]): Promise<Match> => {
+        const body = {
+            court_id: slotInfo.courtId,
+            date: format(slotInfo.date, 'yyyy-MM-dd'),
+            time: slotInfo.time,
+            player_ids_to_invite: playerIdsToInvite,
         };
-        matches.push(newBooking);
-        resolve(newBooking);
-    });
-  },
+        const response = await fetch(`${API_BASE_URL}/matches/create-and-invite`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(body),
+        });
+        return handleResponse(response);
+    },
+    
+    invitePlayersToMatch: async (matchId: string, playerIds: string[]): Promise<Match> => {
+        const response = await fetch(`${API_BASE_URL}/matches/${matchId}/invite`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ player_ids_to_invite: playerIds }),
+        });
+        return handleResponse(response);
+    },
+    
+    respondToInvitation: async (matchId: string, response: 'ACCEPT' | 'DECLINE'): Promise<Match> => {
+        const apiResponse = await fetch(`${API_BASE_URL}/matches/${matchId}/respond`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ response }),
+        });
+        return handleResponse(apiResponse);
+    },
+
+    bookCourt: async (courtId: string, date: Date, time: string): Promise<Match> => {
+        const body = {
+            court_id: courtId,
+            date: format(date, 'yyyy-MM-dd'),
+            time: time,
+        };
+        const response = await fetch(`${API_BASE_URL}/matches/book`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(body),
+        });
+        return handleResponse(response);
+    },
 };

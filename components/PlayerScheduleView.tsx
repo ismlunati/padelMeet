@@ -1,30 +1,51 @@
-import React, { useState } from 'react';
-import { Court, Match, SlotInfo, Player, TimeSlotRequest } from '../types';
-import { format } from 'date-fns';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Court, Match, SlotInfo, Player, TimeSlotRequest, OpeningHours } from '../types';
+import { format, getDay } from 'date-fns';
 import { es } from 'date-fns/locale/es';
+import DateNavigator from './DateSelector';
+import { courtService } from '../services/courtService';
 
 interface PlayerScheduleViewProps {
-  matches: Match[];
   courts: Court[];
   currentUser: Player;
-  timeSlotRequests: TimeSlotRequest[];
+  openingHours: OpeningHours;
   onSlotClick: (slotInfo: SlotInfo) => void;
 }
 
-const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ matches, courts, currentUser, timeSlotRequests, onSlotClick }) => {
+const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, currentUser, openingHours, onSlotClick }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  
-  const slotTimes = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00", "19:30", "21:00"];
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [timeSlotRequests, setTimeSlotRequests] = useState<TimeSlotRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const dayOfWeek = getDay(currentDate);
+  const slotTimes = openingHours[dayOfWeek] || [];
+
+  const fetchSchedule = useCallback(async (date: Date) => {
+    setIsLoading(true);
+    try {
+        const { matches, time_slot_requests } = await courtService.fetchScheduleForDate(date);
+        setMatches(matches);
+        setTimeSlotRequests(time_slot_requests);
+    } catch (error) {
+        console.error(`Failed to fetch schedule for ${date}:`, error);
+        setMatches([]);
+        setTimeSlotRequests([]);
+    } finally {
+        setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSchedule(currentDate);
+  }, [currentDate, fetchSchedule]);
 
   const handleSlotClick = (court: Court, time: string) => {
-    onSlotClick({
-      courtId: court.id,
-      courtName: court.name,
-      time: time,
-      date: currentDate
-    });
+    onSlotClick({ courtId: court.id, courtName: court.name, time: time, date: currentDate });
+    // Refetch after modal interaction might change state
+    setTimeout(() => fetchSchedule(currentDate), 500);
   };
-
+  
   const getStatusClass = (status: Match['status']) => {
       switch (status) {
           case 'ORGANIZING': return 'bg-yellow-900/40 text-yellow-300';
@@ -45,67 +66,65 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ matches, courts
 
   return (
     <div className="bg-brand-light-dark p-4 sm:p-6 rounded-xl border border-brand-stroke shadow-2xl">
-      <div className="text-center mb-6">
-          <p className="text-slate-400">
-            Mostrando disponibilidad para el {format(currentDate, "eeee, d 'de' MMMM", { locale: es })}
-          </p>
-      </div>
+      <DateNavigator currentDate={currentDate} onDateChange={setCurrentDate} />
 
       <div className="overflow-x-auto">
-        <div className="grid gap-px bg-brand-stroke border border-brand-stroke" style={{ gridTemplateColumns: `minmax(6rem, auto) repeat(${courts.length}, 1fr)` }}>
-          {/* Header Row */}
-          <div className="bg-brand-dark p-3 text-center font-bold">Hora</div>
-          {courts.map(court => (
-            <div key={court.id} className="bg-brand-dark p-3 text-center font-bold text-white break-words">
-              {court.name}
-            </div>
-          ))}
-          
-          {/* Body Rows */}
-          {slotTimes.map(time => {
-            const hasUserRequestedThisSlot = timeSlotRequests.some(
-                req => req.playerId === currentUser.id && req.time === time && format(req.date, 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd')
-            );
-            
-            return (
-              <React.Fragment key={time}>
-                <div className={`p-3 text-center font-bold ${hasUserRequestedThisSlot ? 'bg-teal-900/50 text-teal-300' : 'bg-brand-dark text-slate-300'}`}>
-                    {time}
-                    {hasUserRequestedThisSlot && <span className="block text-xs font-normal opacity-80">(Apuntado)</span>}
+        {isLoading ? (
+          <div className="text-center py-10 text-slate-400">Cargando disponibilidad...</div>
+        ) : slotTimes.length > 0 ? (
+            <div className="grid gap-px bg-brand-stroke border border-brand-stroke" style={{ gridTemplateColumns: `minmax(6rem, auto) repeat(${courts.length}, 1fr)` }}>
+              {/* Header Row */}
+              <div className="bg-brand-dark p-3 text-center font-bold">Hora</div>
+              {courts.map(court => (
+                <div key={court.id} className="bg-brand-dark p-3 text-center font-bold text-white break-words">
+                  {court.name}
                 </div>
-                {courts.map(court => {
-                  const matchOnSlot = matches.find(m => 
-                      m.court.id === court.id && 
-                      m.time === time &&
-                      format(m.date, 'yyyy-MM-dd') === format(currentDate, 'yyyy-MM-dd')
-                  );
-
-                  if (matchOnSlot) {
-                      return (
-                          <div key={court.id} className={`p-2 text-center text-sm flex flex-col justify-center items-center ${getStatusClass(matchOnSlot.status)}`}>
-                              <p className="font-bold">{getStatusText(matchOnSlot.status)}</p>
-                              {(matchOnSlot.status === 'ORGANIZING' || matchOnSlot.status === 'CONFIRMED') &&
-                                  <p className="text-xs opacity-80">{matchOnSlot.players.length} / 4 Jugadores</p>
-                              }
-                          </div>
-                      )
-                  }
-                  
-                  return (
-                    <div key={court.id} className={`p-2 text-center text-sm flex items-center justify-center ${hasUserRequestedThisSlot ? 'bg-teal-900/20' : 'bg-brand-light-dark'}`}>
-                      <button 
-                        onClick={() => handleSlotClick(court, time)}
-                        className="w-full h-full bg-brand-stroke text-slate-300 rounded-md hover:bg-brand-primary hover:text-brand-dark font-semibold transition-colors"
-                      >
-                        Elegir
-                      </button>
+              ))}
+              
+              {/* Body Rows */}
+              {slotTimes.map(time => {
+                const hasUserRequestedThisSlot = timeSlotRequests.some(req => req.playerId === currentUser.id && req.time === time);
+                
+                return (
+                  <React.Fragment key={time}>
+                    <div className={`p-3 text-center font-bold ${hasUserRequestedThisSlot ? 'bg-teal-900/50 text-teal-300' : 'bg-brand-dark text-slate-300'}`}>
+                        {time}
+                        {hasUserRequestedThisSlot && <span className="block text-xs font-normal opacity-80">(Apuntado)</span>}
                     </div>
-                  )
-                })}
-              </React.Fragment>
-            )
-          })}
-        </div>
+                    {courts.map(court => {
+                      const matchOnSlot = matches.find(m => m.court.id === court.id && m.time === time);
+
+                      if (matchOnSlot) {
+                          return (
+                              <div key={court.id} className={`p-2 text-center text-sm flex flex-col justify-center items-center ${getStatusClass(matchOnSlot.status)}`}>
+                                  <p className="font-bold">{getStatusText(matchOnSlot.status)}</p>
+                                  {(matchOnSlot.status === 'ORGANIZING' || matchOnSlot.status === 'CONFIRMED') &&
+                                      <p className="text-xs opacity-80">{matchOnSlot.players.length} / 4 Jugadores</p>
+                                  }
+                              </div>
+                          )
+                      }
+                      
+                      return (
+                        <div key={court.id} className={`p-2 text-center text-sm flex items-center justify-center ${hasUserRequestedThisSlot ? 'bg-teal-900/20' : 'bg-brand-light-dark'}`}>
+                          <button 
+                            onClick={() => handleSlotClick(court, time)}
+                            className="w-full h-full bg-brand-stroke text-slate-300 rounded-md hover:bg-brand-primary hover:text-brand-dark font-semibold transition-colors"
+                          >
+                            Elegir
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </React.Fragment>
+                )
+              })}
+            </div>
+        ) : (
+             <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
+                <p className="text-slate-400">No hay pistas disponibles en este día.</p>
+            </div>
+        )}
       </div>
     </div>
   );

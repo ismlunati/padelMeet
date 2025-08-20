@@ -43,3 +43,8 @@ export enum ViewState {
   LIST_CLUBS = 'LIST_CLUBS', 
   // Other views can be added later if needed
 }
+
+export interface OpeningHours {
+  // Key is the day of the week (0 for Sunday, 1 for Monday, etc.)
+  [dayOfWeek: number]: string[]; 
+}
