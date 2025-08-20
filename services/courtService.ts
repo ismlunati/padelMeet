@@ -107,6 +107,17 @@ export const courtService = {
         return handleResponse(response);
     },
 
+    // --- Player-Specific Data ---
+    fetchMyInvitations: async (): Promise<Match[]> => {
+        const response = await fetch(`${API_BASE_URL}/me/invitations`, { headers: getAuthHeaders() });
+        return handleResponse(response);
+    },
+
+    fetchMyMatches: async (): Promise<Match[]> => {
+        const response = await fetch(`${API_BASE_URL}/me/matches`, { headers: getAuthHeaders() });
+        return handleResponse(response);
+    },
+
     // --- Schedule & Matches ---
     fetchScheduleForDate: async (date: Date): Promise<{ matches: Match[], time_slot_requests: TimeSlotRequest[] }> => {
         const dateString = format(date, 'yyyy-MM-dd');

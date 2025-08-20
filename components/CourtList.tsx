@@ -18,23 +18,23 @@ const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ courts, currentUser, 
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchDashboardData = useCallback(async () => {
+        if (!currentUser?.id) return;
         setIsLoading(true);
         try {
-            // For now, we fetch today's schedule to find invitations and matches.
-            // A real-world app might have dedicated endpoints like /me/invitations
-            const { matches } = await courtService.fetchScheduleForDate(new Date());
-            
-            const invitations = matches.filter(m => m.invitedPlayerIds.includes(currentUser.id) && m.status === 'ORGANIZING');
-            const confirmed = matches.filter(m => m.players.some(p => p.id === currentUser.id));
+            const [invitations, confirmedMatches] = await Promise.all([
+                courtService.fetchMyInvitations(),
+                courtService.fetchMyMatches(),
+            ]);
             
             setMyInvitations(invitations);
-            setMyConfirmedMatches(confirmed);
+            setMyConfirmedMatches(confirmedMatches);
         } catch (error) {
             console.error("Failed to fetch player dashboard data:", error);
+            // Optionally, set an error state to show a message to the user
         } finally {
             setIsLoading(false);
         }
-    }, [currentUser.id]);
+    }, [currentUser?.id]);
 
     useEffect(() => {
         fetchDashboardData();
@@ -57,7 +57,7 @@ const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ courts, currentUser, 
         <div className="animate-fade-in space-y-16">
             <div>
                 <div className="text-center mb-12">
-                    <h1 className="text-4xl font-extrabold text-white">Hola, {currentUser.name.split(' ')[0]}</h1>
+                    <h1 className="text-4xl font-extrabold text-white">Hola, {currentUser.name?.split(' ')[0] ?? ''}</h1>
                     <p className="text-lg text-slate-400 mt-2">Este es tu panel de partidos.</p>
                 </div>
 

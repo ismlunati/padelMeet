@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, addDays, sub, isToday } from 'date-fns';
+import { format, addDays, subDays, isToday } from 'date-fns';
 import { es } from 'date-fns/locale/es';
 import { ChevronLeftIcon, ChevronRightIcon } from './IconComponents';
 
@@ -13,7 +13,7 @@ const DateNavigator: React.FC<DateNavigatorProps> = ({ currentDate, onDateChange
 
   const handlePrevDay = () => {
     if (!isCurrentDateToday) {
-      onDateChange(sub(currentDate, { days: 1 }));
+      onDateChange(subDays(currentDate, 1));
     }
   };
 
