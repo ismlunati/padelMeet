@@ -163,7 +163,11 @@ export const courtService = {
 
     fetchOpeningHours: async (): Promise<OpeningHours> => {
         const response = await fetch(`${API_BASE_URL}/settings/opening-hours`, { headers: getAuthHeaders() });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        // The backend might return the hours nested under a key (e.g., {"openingHours": {...}}).
+        // This unwraps the data, ensuring the app receives the expected { dayIndex: slots[] } format.
+        // It defaults to an empty object if no hours are configured.
+        return rawData.openingHours || rawData.opening_hours || rawData || {};
     },
 
     updateOpeningHours: async (newHours: OpeningHours): Promise<OpeningHours> => {
@@ -172,7 +176,9 @@ export const courtService = {
             headers: getAuthHeaders(),
             body: JSON.stringify({ openingHours: newHours }),
         });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        // The response after updating might also be wrapped. We unwrap it for consistency.
+        return rawData.openingHours || rawData.opening_hours || rawData || {};
     },
 
     // --- Player-Specific Data ---
