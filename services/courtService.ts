@@ -74,6 +74,41 @@ const mapTimeSlotRequestFromApi = (apiRequest: any): TimeSlotRequest => ({
     time: apiRequest.preferred_start_time.substring(0, 5),
 });
 
+
+const dayNameToIndex: { [key: string]: number } = {
+    'sunday': 0, 'domingo': 0,
+    'monday': 1, 'lunes': 1,
+    'tuesday': 2, 'martes': 2,
+    'wednesday': 3, 'miércoles': 3, 'miercoles': 3,
+    'thursday': 4, 'jueves': 4,
+    'friday': 5, 'viernes': 5,
+    'saturday': 6, 'sábado': 6, 'sabado': 6
+};
+
+const mapOpeningHoursFromApi = (apiData: any): OpeningHours => {
+    // 1. Unwrap the data from potential container objects.
+    const hoursData = apiData.openingHours || apiData.opening_hours || apiData;
+
+    // 2. Validate that we have a processable object.
+    if (typeof hoursData !== 'object' || hoursData === null || Array.isArray(hoursData)) {
+        return {}; // Return empty if data is invalid, preventing crashes.
+    }
+
+    // 3. Transform keys to ensure they are numeric indices (0-6).
+    const transformedHours: OpeningHours = {};
+    for (const key in hoursData) {
+        const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (!isNaN(Number(key))) { // Key is already "0", "1", etc.
+            transformedHours[Number(key)] = hoursData[key];
+        } else if (dayNameToIndex.hasOwnProperty(normalizedKey)) { // Key is "monday", "lunes", etc.
+            const dayIndex = dayNameToIndex[normalizedKey];
+            transformedHours[dayIndex] = hoursData[key];
+        }
+    }
+    return transformedHours;
+};
+
+
 // Helper to handle API responses and errors
 const handleResponse = async (response: Response) => {
     if (!response.ok) {
@@ -174,16 +209,7 @@ export const courtService = {
     fetchOpeningHours: async (): Promise<OpeningHours> => {
         const response = await fetch(`${API_BASE_URL}/settings/opening-hours`, { headers: getAuthHeaders() });
         const rawData = await handleResponse(response);
-        
-        // This logic robustly unwraps the opening hours data.
-        const hoursData = rawData.openingHours || rawData.opening_hours || rawData;
-
-        // Ensure the final result is a valid object, defaulting to an empty one if the
-        // API returns null, an array, or any other non-object type. This prevents crashes.
-        if (typeof hoursData !== 'object' || hoursData === null || Array.isArray(hoursData)) {
-            return {};
-        }
-        return hoursData;
+        return mapOpeningHoursFromApi(rawData);
     },
 
     updateOpeningHours: async (newHours: OpeningHours): Promise<OpeningHours> => {
@@ -193,8 +219,7 @@ export const courtService = {
             body: JSON.stringify({ openingHours: newHours }),
         });
         const rawData = await handleResponse(response);
-        // The response after updating might also be wrapped. We unwrap it for consistency.
-        return rawData.openingHours || rawData.opening_hours || rawData || {};
+        return mapOpeningHoursFromApi(rawData);
     },
 
     // --- Player-Specific Data ---
