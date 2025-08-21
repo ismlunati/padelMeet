@@ -3,6 +3,64 @@ import { format } from 'date-fns';
 
 const API_BASE_URL = 'http://localhost:8000/api/v1';
 
+// --- Data Mapping Layer ---
+// This layer translates the API data structure into the frontend's expected format.
+
+const mapPlayerFromApi = (apiPlayer: any): Player => {
+    // Handles cases where the player object is nested (e.g., inside match.players)
+    const playerData = apiPlayer.player || apiPlayer;
+    const firstName = playerData.first_name || '';
+    const lastName = playerData.last_name || '';
+    return {
+        id: playerData.id.toString(),
+        name: `${firstName} ${lastName}`.trim(),
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName)}+${encodeURIComponent(lastName)}&background=random&color=fff`,
+        role: playerData.is_admin ? 'admin' : 'player',
+        phoneNumber: playerData.phone,
+    };
+};
+
+const mapMatchFromApi = (apiMatch: any): Match => {
+    let status: Match['status'] = 'ORGANIZING';
+    switch (apiMatch.status) {
+        case 'confirmed':
+            status = 'CONFIRMED';
+            break;
+        case 'organizing':
+            status = 'ORGANIZING';
+            break;
+        case 'booked':
+            status = 'BOOKED';
+            break;
+    }
+
+    return {
+        id: apiMatch.id.toString(),
+        court: {
+            id: apiMatch.court.id.toString(),
+            name: apiMatch.court.name,
+        },
+        start_time: apiMatch.start_time,
+        end_time: apiMatch.end_time,
+        // The API returns player join records, we extract the actual player data
+        // and only include players who have accepted the invitation.
+        players: (apiMatch.players || []).filter((p: any) => p.accepted).map(mapPlayerFromApi),
+        invitedPlayerIds: [], // The current backend response doesn't provide this information.
+        capacity: apiMatch.max_players,
+        status: status,
+        // The backend uses organizer_id, but some frontend components might expect bookedById
+        bookedById: apiMatch.organizer_id ? apiMatch.organizer_id.toString() : undefined,
+    };
+};
+
+const mapTimeSlotRequestFromApi = (apiRequest: any): TimeSlotRequest => ({
+    playerId: apiRequest.player_id.toString(),
+    // The backend provides a full ISO string for the date part.
+    date: new Date(apiRequest.preferred_date),
+    // The backend provides time as "HH:mm:ss", frontend expects "HH:mm".
+    time: apiRequest.preferred_start_time.substring(0, 5),
+});
+
 // Helper to handle API responses and errors
 const handleResponse = async (response: Response) => {
     if (!response.ok) {
@@ -79,7 +137,8 @@ export const courtService = {
         const response = await fetch(`${API_BASE_URL}/auth/me`, {
             headers: getAuthHeaders(),
         });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return mapPlayerFromApi(rawData);
     },
     
     // --- General Data ---
@@ -90,7 +149,8 @@ export const courtService = {
 
     fetchAllPlayers: async (): Promise<Player[]> => {
         const response = await fetch(`${API_BASE_URL}/players`, { headers: getAuthHeaders() });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return rawData.map(mapPlayerFromApi);
     },
 
     fetchOpeningHours: async (): Promise<OpeningHours> => {
@@ -110,12 +170,14 @@ export const courtService = {
     // --- Player-Specific Data ---
     fetchMyInvitations: async (): Promise<Match[]> => {
         const response = await fetch(`${API_BASE_URL}/me/invitations`, { headers: getAuthHeaders() });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return Array.isArray(rawData) ? rawData.map(mapMatchFromApi) : [];
     },
 
     fetchMyMatches: async (): Promise<Match[]> => {
         const response = await fetch(`${API_BASE_URL}/me/matches`, { headers: getAuthHeaders() });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return Array.isArray(rawData) ? rawData.map(mapMatchFromApi) : [];
     },
 
     // --- Schedule & Matches ---
@@ -125,15 +187,23 @@ export const courtService = {
         const response = await fetch(`${API_BASE_URL}/matches/schedule?date=${dateString}`, {
             headers: getAuthHeaders(),
         });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return {
+             matches: (rawData.matches || [])
+                .filter((match: any) => match.status !== 'canceled')
+                .map(mapMatchFromApi),
+            time_slot_requests: (rawData.time_slot_requests || []).map(mapTimeSlotRequestFromApi),
+        }
     },
     
     addTimeSlotRequest: async (date: Date, time: string): Promise<TimeSlotRequest> => {
-      return fetch(`${API_BASE_URL}/requests`, {
+      const response = await fetch(`${API_BASE_URL}/requests`, {
           method: 'POST',
           headers: getAuthHeaders(),
           body: JSON.stringify({ date: format(date, 'yyyy-MM-dd'), time }),
-      }).then(handleResponse);
+      });
+      const rawData = await handleResponse(response);
+      return mapTimeSlotRequestFromApi(rawData);
     },
 
     createMatchAndInvite: async (slotInfo: SlotInfo, playerIdsToInvite: string[]): Promise<Match> => {
@@ -148,7 +218,8 @@ export const courtService = {
             headers: getAuthHeaders(),
             body: JSON.stringify(body),
         });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return mapMatchFromApi(rawData);
     },
     
     invitePlayersToMatch: async (matchId: string, playerIds: string[]): Promise<Match> => {
@@ -157,7 +228,8 @@ export const courtService = {
             headers: getAuthHeaders(),
             body: JSON.stringify({ player_ids_to_invite: playerIds }),
         });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return mapMatchFromApi(rawData);
     },
     
     respondToInvitation: async (matchId: string, response: 'ACCEPT' | 'DECLINE'): Promise<Match> => {
@@ -166,7 +238,8 @@ export const courtService = {
             headers: getAuthHeaders(),
             body: JSON.stringify({ response }),
         });
-        return handleResponse(apiResponse);
+        const rawData = await handleResponse(apiResponse);
+        return mapMatchFromApi(rawData);
     },
 
     bookCourt: async (courtId: string, date: Date, time: string): Promise<Match> => {
@@ -180,6 +253,7 @@ export const courtService = {
             headers: getAuthHeaders(),
             body: JSON.stringify(body),
         });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        return mapMatchFromApi(rawData);
     },
 };
