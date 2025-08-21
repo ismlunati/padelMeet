@@ -121,8 +121,8 @@ export const courtService = {
     // --- Schedule & Matches ---
     fetchScheduleForDate: async (date: Date): Promise<{ matches: Match[], time_slot_requests: TimeSlotRequest[] }> => {
         const dateString = format(date, 'yyyy-MM-dd');
-        // This is the corrected line. It now correctly points to /schedule.
-        const response = await fetch(`${API_BASE_URL}/schedule?date=${dateString}`, {
+        // This endpoint was updated to align with the backend's /matches/schedule route.
+        const response = await fetch(`${API_BASE_URL}/matches/schedule?date=${dateString}`, {
             headers: getAuthHeaders(),
         });
         return handleResponse(response);
