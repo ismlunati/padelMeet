@@ -164,10 +164,16 @@ export const courtService = {
     fetchOpeningHours: async (): Promise<OpeningHours> => {
         const response = await fetch(`${API_BASE_URL}/settings/opening-hours`, { headers: getAuthHeaders() });
         const rawData = await handleResponse(response);
-        // The backend might return the hours nested under a key (e.g., {"openingHours": {...}}).
-        // This unwraps the data, ensuring the app receives the expected { dayIndex: slots[] } format.
-        // It defaults to an empty object if no hours are configured.
-        return rawData.openingHours || rawData.opening_hours || rawData || {};
+        
+        // This logic robustly unwraps the opening hours data.
+        const hoursData = rawData.openingHours || rawData.opening_hours || rawData;
+
+        // Ensure the final result is a valid object, defaulting to an empty one if the
+        // API returns null, an array, or any other non-object type. This prevents crashes.
+        if (typeof hoursData !== 'object' || hoursData === null || Array.isArray(hoursData)) {
+            return {};
+        }
+        return hoursData;
     },
 
     updateOpeningHours: async (newHours: OpeningHours): Promise<OpeningHours> => {

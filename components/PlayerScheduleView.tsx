@@ -79,6 +79,23 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, current
               </div>
           );
       }
+      // Add checks for essential data required to build the grid
+      if (courts.length === 0) {
+          return (
+              <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
+                  <p className="font-bold text-slate-300">No hay pistas en el club</p>
+                  <p className="text-slate-400">El administrador aún no ha configurado ninguna pista.</p>
+              </div>
+          );
+      }
+      if (!openingHours || Object.keys(openingHours).length === 0) {
+        return (
+            <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
+                <p className="font-bold text-slate-300">Club Cerrado</p>
+                <p className="text-slate-400">El administrador no ha configurado los horarios de apertura.</p>
+            </div>
+        );
+      }
       if (slotTimes.length === 0) {
           return (
               <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">

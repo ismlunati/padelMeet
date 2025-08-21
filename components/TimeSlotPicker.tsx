@@ -73,6 +73,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ courts, players, openin
         );
     }
     
+    // The calendar grid cannot be drawn without opening hours. This message is more specific.
+    if (!openingHours || Object.keys(openingHours).length === 0) {
+        return (
+            <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
+                <p className="font-bold text-slate-300">Horarios no Configurados</p>
+                <p className="text-sm text-slate-500 mt-2">No se han definido los horarios de apertura del club. Haz click en el icono de ajustes para configurarlos.</p>
+            </div>
+        );
+    }
+
     if (slotTimes.length === 0) {
         return (
              <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
@@ -181,10 +191,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ courts, players, openin
       </div>
 
       <DateNavigator currentDate={currentDate} onDateChange={handleDateChange} />
-
-      <div className="overflow-x-auto">
-        {renderGrid()}
-      </div>
+      
+      {/* Explicitly check if courts are configured before attempting to render the schedule */}
+      {courts.length === 0 && !isLoading ? (
+          <div className="text-center py-10 bg-brand-dark rounded-lg border border-dashed border-brand-stroke">
+              <p className="font-bold text-slate-300">No hay Pistas Configradas</p>
+              <p className="text-sm text-slate-500 mt-2">Como administrador, por favor añade pistas para poder gestionar el calendario.</p>
+          </div>
+      ) : (
+        <div className="overflow-x-auto">
+          {renderGrid()}
+        </div>
+      )}
     </div>
   );
 };
