@@ -32,6 +32,10 @@ const mapMatchFromApi = (apiMatch: any): Match => {
         case 'booked':
             status = 'BOOKED';
             break;
+        default:
+            // Default to ORGANIZING for any unknown statuses to prevent crashes
+            status = 'ORGANIZING'; 
+            break;
     }
 
     return {
@@ -50,6 +54,8 @@ const mapMatchFromApi = (apiMatch: any): Match => {
         status: status,
         // The backend uses organizer_id, but some frontend components might expect bookedById
         bookedById: apiMatch.organizer_id ? apiMatch.organizer_id.toString() : undefined,
+        notes: apiMatch.notes,
+        organizer: apiMatch.organizer ? mapPlayerFromApi(apiMatch.organizer) : undefined,
     };
 };
 
@@ -150,7 +156,9 @@ export const courtService = {
     fetchAllPlayers: async (): Promise<Player[]> => {
         const response = await fetch(`${API_BASE_URL}/players`, { headers: getAuthHeaders() });
         const rawData = await handleResponse(response);
-        return rawData.map(mapPlayerFromApi);
+        // Handle both direct array and wrapped object responses for robustness.
+        const players = Array.isArray(rawData) ? rawData : rawData.players || [];
+        return players.map(mapPlayerFromApi);
     },
 
     fetchOpeningHours: async (): Promise<OpeningHours> => {
@@ -171,13 +179,18 @@ export const courtService = {
     fetchMyInvitations: async (): Promise<Match[]> => {
         const response = await fetch(`${API_BASE_URL}/me/invitations`, { headers: getAuthHeaders() });
         const rawData = await handleResponse(response);
-        return Array.isArray(rawData) ? rawData.map(mapMatchFromApi) : [];
+        // Handle responses that might be a direct array or wrapped in an object
+        // (e.g., {"invitations": [...]}, {"matches": [...]}, or just [...]).
+        const invitations = rawData.invitations || rawData.matches || (Array.isArray(rawData) ? rawData : []);
+        return invitations.map(mapMatchFromApi);
     },
 
     fetchMyMatches: async (): Promise<Match[]> => {
         const response = await fetch(`${API_BASE_URL}/me/matches`, { headers: getAuthHeaders() });
         const rawData = await handleResponse(response);
-        return Array.isArray(rawData) ? rawData.map(mapMatchFromApi) : [];
+        // Handle both direct array and wrapped object responses for robustness.
+        const matches = rawData.matches || (Array.isArray(rawData) ? rawData : []);
+        return matches.map(mapMatchFromApi);
     },
 
     // --- Schedule & Matches ---

@@ -21,6 +21,8 @@ export interface Match {
   capacity: number;
   status: 'ORGANIZING' | 'CONFIRMED' | 'BOOKED';
   bookedById?: string; // Player ID who booked the full court
+  notes?: string; // Notes for the match
+  organizer?: Player; // The player who organized the match
 }
 
 // Represents a player's interest in a specific time slot on a specific day
