@@ -1,7 +1,7 @@
 import { Court, Match, Player, TimeSlotRequest, SlotInfo, OpeningHours } from '../types';
 import { format } from 'date-fns';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 // Helper to handle API responses and errors
 const handleResponse = async (response: Response) => {
