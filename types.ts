@@ -9,6 +9,8 @@ export interface Player {
 export interface Court {
   id: string;
   name: string;
+  court_type?: string; // e.g., 'double', 'single', 'panoramic'
+  indoor?: boolean;
 }
 
 export interface Match {

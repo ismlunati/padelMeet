@@ -20,6 +20,13 @@ const mapPlayerFromApi = (apiPlayer: any): Player => {
     };
 };
 
+const mapCourtFromApi = (apiCourt: any): Court => ({
+    id: apiCourt.id.toString(),
+    name: apiCourt.name,
+    court_type: apiCourt.court_type,
+    indoor: apiCourt.indoor,
+});
+
 const mapMatchFromApi = (apiMatch: any): Match => {
     let status: Match['status'] = 'ORGANIZING';
     switch (apiMatch.status) {
@@ -150,7 +157,10 @@ export const courtService = {
     // --- General Data ---
     fetchCourts: async (): Promise<Court[]> => {
         const response = await fetch(`${API_BASE_URL}/courts`, { headers: getAuthHeaders() });
-        return handleResponse(response);
+        const rawData = await handleResponse(response);
+        // Ensure robustness by handling direct arrays or wrapped objects (e.g., { "courts": [...] })
+        const courts = Array.isArray(rawData) ? rawData : rawData.courts || [];
+        return courts.map(mapCourtFromApi);
     },
 
     fetchAllPlayers: async (): Promise<Player[]> => {
