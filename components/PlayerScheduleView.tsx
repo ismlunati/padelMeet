@@ -109,7 +109,7 @@ const PlayerScheduleView: React.FC<PlayerScheduleViewProps> = ({ courts, current
                     </div>
                     {courts.map(court => {
                       const matchOnSlot = matches.find(m => 
-                          m.court.id === court.id && m.start_time && format(new Date(m.start_time), 'HH:mm') === time
+                          m.court.id === court.id && m.start_time && m.start_time.substring(11, 16) === time
                       );
 
                       if (matchOnSlot) {
