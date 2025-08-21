@@ -86,23 +86,50 @@ const dayNameToIndex: { [key: string]: number } = {
 };
 
 const mapOpeningHoursFromApi = (apiData: any): OpeningHours => {
-    // 1. Unwrap the data from potential container objects.
-    const hoursData = apiData.openingHours || apiData.opening_hours || apiData;
+    // 1. Find the core data object, which might be nested.
+    let hoursData = apiData;
+    if (typeof apiData === 'object' && apiData !== null && !Array.isArray(apiData)) {
+        const potentialKeys = ['openingHours', 'opening_hours', 'schedule'];
+        const foundKey = potentialKeys.find(key => apiData[key] && typeof apiData[key] === 'object');
+        if (foundKey) {
+            hoursData = apiData[foundKey];
+        }
+    }
 
     // 2. Validate that we have a processable object.
     if (typeof hoursData !== 'object' || hoursData === null || Array.isArray(hoursData)) {
         return {}; // Return empty if data is invalid, preventing crashes.
     }
 
-    // 3. Transform keys to ensure they are numeric indices (0-6).
+    // 3. Transform the object, robustly handling both keys (day) and values (time slots).
     const transformedHours: OpeningHours = {};
     for (const key in hoursData) {
+        const dayValue = hoursData[key];
+        
+        // Determine the correct numeric day index from either a number or name.
+        let dayIndex: number | null = null;
         const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (!isNaN(Number(key))) { // Key is already "0", "1", etc.
-            transformedHours[Number(key)] = hoursData[key];
-        } else if (dayNameToIndex.hasOwnProperty(normalizedKey)) { // Key is "monday", "lunes", etc.
-            const dayIndex = dayNameToIndex[normalizedKey];
-            transformedHours[dayIndex] = hoursData[key];
+        if (!isNaN(Number(key)) && Number(key) >= 0 && Number(key) <= 6) {
+            dayIndex = Number(key);
+        } else if (dayNameToIndex.hasOwnProperty(normalizedKey)) {
+            dayIndex = dayNameToIndex[normalizedKey];
+        }
+
+        if (dayIndex !== null) {
+            // Robustly extract the string array of time slots.
+            // This handles cases where the value is a direct array `["09:00"]`
+            // or an object containing the array, e.g., `{ "slots": ["09:00"] }`.
+            let timeSlots: string[] = [];
+            if (Array.isArray(dayValue)) {
+                timeSlots = dayValue.filter(v => typeof v === 'string');
+            } else if (typeof dayValue === 'object' && dayValue !== null && Array.isArray(dayValue.slots)) {
+                timeSlots = dayValue.slots.filter((v: any) => typeof v === 'string');
+            }
+            
+            if (timeSlots.length > 0) {
+              // Sort to ensure consistent order for the UI.
+              transformedHours[dayIndex] = timeSlots.sort();
+            }
         }
     }
     return transformedHours;
